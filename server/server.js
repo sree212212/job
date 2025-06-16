@@ -1,12 +1,11 @@
 import express from 'express';
 import cors from 'cors';
-import connectDB from './config/db.js';
-import bodyParser from 'body-parser';
-import { clerkWebhooks } from './controllers/webhooks.js';
-import * as Sentry from "@sentry/node";
-import './config/instrument.js'; // Assuming this sets up Sentry
-
+import mongoose from 'mongoose';
 import 'dotenv/config';
+import * as Sentry from "@sentry/node";
+import { clerkWebhooks } from './controllers/webhooks.js';
+import connectDB from './config/db.js';
+import './config/instrument.js';
 
 // Initialize Express app
 const app = express();
@@ -14,24 +13,31 @@ const app = express();
 // Connect to MongoDB
 await connectDB();
 
-// Raw body parser ONLY for Clerk Webhooks
-app.use('/webhooks', bodyParser.raw({ type: 'application/json' }));
+// Middleware: Sentry setup (optional but included based on your code)
+Sentry.setupExpressErrorHandler(app);
 
-// General middleware
+// Middleware for /webhooks route to get raw body for svix
+app.use((req, res, next) => {
+  if (req.originalUrl === '/webhooks') {
+    express.raw({ type: '*/*' })(req, res, next);
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
 app.use(cors());
-app.use(express.json()); // for non-webhook JSON requests
 
 // Routes
-app.get('/', (req, res) => res.send("API working"));
+app.get('/', (req, res) => {
+  res.send('API working');
+});
 
 app.get("/debug-sentry", function mainHandler(req, res) {
   throw new Error("My first Sentry error!");
 });
 
+// Webhook endpoint (must come after raw body middleware)
 app.post('/webhooks', clerkWebhooks);
-
-// Sentry error handler
-Sentry.setupExpressErrorHandler(app);
 
 // Start server
 const PORT = process.env.PORT || 5000;
