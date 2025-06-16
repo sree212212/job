@@ -1,9 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import mongoose from 'mongoose';
+
 import 'dotenv/config';
 import * as Sentry from "@sentry/node";
 import { clerkWebhooks } from './controllers/webhooks.js';
+import { clerkMiddleware } from '@clerk/express';
 import connectDB from './config/db.js';
 import './config/instrument.js';
 
@@ -17,15 +18,11 @@ await connectDB();
 Sentry.setupExpressErrorHandler(app);
 
 // Middleware for /webhooks route to get raw body for svix
-app.use((req, res, next) => {
-  if (req.originalUrl === '/webhooks') {
-    express.raw({ type: '*/*' })(req, res, next);
-  } else {
-    express.json()(req, res, next);
-  }
-});
-
 app.use(cors());
+app.use(express.json())
+
+
+app.use(clerkMiddleware());
 
 // Routes
 app.get('/', (req, res) => {
